@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAN → Udyam Batch Lookup</title>
+<style>
+  :root {
+    --bg: #0b0e17;
+    --panel: #121627;
+    --panel-2: #171c30;
+    --border: #262c44;
+    --ink: #eef0f8;
+    --muted: #8b90a8;
+    --accent: #4f7cff;
+    --accent-2: #7c5cff;
+    --success: #34d399;
+    --success-bg: rgba(52,211,153,0.12);
+    --warn: #fbbf24;
+    --warn-bg: rgba(251,191,36,0.12);
+    --error: #f87171;
+    --error-bg: rgba(248,113,113,0.12);
+    --muted-bg: rgba(139,144,168,0.12);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Inter", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 40px 20px 60px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  .hero {
+    background: linear-gradient(135deg, #1c2b6b 0%, #16204d 45%, #0e1533 100%);
+    border: 1px solid #2a3878;
+    border-radius: 20px;
+    padding: 34px 32px;
+    margin-bottom: 24px;
+    text-align: center;
+  }
+  .hero .icon { font-size: 30px; margin-bottom: 10px; }
+  .hero h1 { font-size: 26px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .hero p { color: #b6c0ee; margin: 0; font-size: 14px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    font-size: 14.5px;
+  }
+  .card-head .muted-note { margin-left: auto; font-weight: 400; font-size: 12px; color: var(--muted); }
+
+  .banner {
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    margin-bottom: 18px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid rgba(251,191,36,0.3); }
+  .banner.error { background: var(--error-bg); color: var(--error); border: 1px solid rgba(248,113,113,0.3); }
+
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: var(--panel-2);
+  }
+  #dropzone.dragover { border-color: var(--accent); background: rgba(79,124,255,0.08); }
+  #dropzone .dz-icon { font-size: 34px; margin-bottom: 10px; }
+  #dropzone .dz-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; }
+  #dropzone .dz-sub { font-size: 13px; color: var(--muted); }
+  #file-input { display: none; }
+
+  #file-chip {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 9px 12px;
+    background: rgba(79,124,255,0.1);
+    border: 1px solid rgba(79,124,255,0.25);
+    border-radius: 10px;
+    font-size: 13px;
+    color: #c4d3ff;
+    font-weight: 600;
+  }
+  #file-chip .clear-btn {
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 400;
+    background: none;
+    border: none;
+    font-size: 13px;
+    text-decoration: underline;
+  }
+
+  button.primary {
+    width: 100%;
+    margin-top: 18px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none;
+    padding: 13px 20px;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+  button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .hint { font-size: 12px; color: var(--muted); margin-top: 14px; line-height: 1.6; }
+
+  #progress-card { display: none; }
+  .progress-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .progress-head .label { font-weight: 600; font-size: 14px; }
+  .progress-head .count { font-size: 13px; color: var(--muted); }
+  .progress-track { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
+  .progress-fill {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 999px; transition: width 0.4s ease;
+  }
+  .progress-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+
+  /* Scrollable results so 200-300 rows never blow up the page */
+  .table-scroll {
+    margin-top: 18px;
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  table#results-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table#results-table thead th {
+    position: sticky; top: 0;
+    background: var(--panel-2);
+    text-align: left;
+    color: var(--muted);
+    font-weight: 600;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  table#results-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #1c2136;
+    vertical-align: top;
+  }
+  table#results-table tr:last-child td { border-bottom: none; }
+
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .pill.success { background: var(--success-bg); color: var(--success); }
+  .pill.no_record { background: var(--muted-bg); color: var(--muted); }
+  .pill.cancelled { background: var(--warn-bg); color: var(--warn); }
+  .pill.error { background: var(--error-bg); color: var(--error); }
+  .pill.unknown { background: var(--muted-bg); color: var(--muted); }
+  .mono { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px; color: #d6dbf5; }
+
+  #download-card { display: none; text-align: center; }
+  #download-card .icon { font-size: 34px; margin-bottom: 8px; }
+  #download-card h2 { font-size: 18px; margin: 0 0 6px; }
+  #download-card p { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  a.download-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; text-decoration: none;
+    padding: 12px 24px; border-radius: 10px;
+    font-weight: 700; font-size: 14px;
+  }
+  .summary-row { display: flex; justify-content: center; gap: 26px; margin-top: 20px; flex-wrap: wrap; }
+  .summary-stat { text-align: center; }
+  .summary-stat .n { font-size: 20px; font-weight: 700; }
+  .summary-stat .l { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="icon">📊</div>
+    <h1>PAN → Udyam Batch Lookup</h1>
+    <p>Upload a PAN list · Fetch Udyam &amp; social category data · Export results to Excel</p>
+  </div>
+
+  {% if api_key_missing %}
+    <div class="banner warn">⚠️ Server has no GRIDLINES_API_KEY configured. Set the environment variable and restart the app before uploading a file.</div>
+  {% endif %}
+
+  <div class="card" id="upload-card">
+    <div class="card-head">📁 Upload PAN Excel File <span class="muted-note">.xlsx / .xls · column named "PAN"</span></div>
+    <div id="dropzone">
+      <div class="dz-icon">📂</div>
+      <div class="dz-title">Drop your Excel file here</div>
+      <div class="dz-sub">or click to browse</div>
+      <input type="file" id="file-input" accept=".xlsx,.xls">
+    </div>
+    <div id="file-chip">
+      <span id="file-chip-name"></span>
+      <button type="button" class="clear-btn" id="clear-file">remove</button>
+    </div>
+    <button class="primary" id="submit-btn" disabled>Fetch Udyam Details</button>
+    <div class="hint">Rows are processed one at a time to respect API rate limits — a file with 200-300 PANs can take several minutes. You can safely refresh this page; it will pick the job back up.</div>
+  </div>
+
+  <div class="card" id="progress-card">
+    <div class="card-head">⏳ Processing <span class="muted-note" id="filename-note"></span></div>
+    <div class="progress-head">
+      <span class="label" id="progress-label">Starting…</span>
+      <span class="count" id="progress-count"></span>
+    </div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-note" id="progress-eta">Please keep this tab open until it finishes — or safely reload; progress is saved on the server.</div>
+    <div class="table-scroll">
+      <table id="results-table">
+        <thead><tr><th>PAN</th><th>Result</th><th>Udyam Number</th><th>Social Category</th></tr></thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" id="download-card">
+    <div class="icon">✅</div>
+    <h2>All done</h2>
+    <p>Your results file is ready to download.</p>
+    <a class="download-btn" id="download-link" href="#">Download Results Excel</a>
+    <div class="summary-row" id="summary-row"></div>
+  </div>
+
+  <div class="card banner error" id="error-card" style="display:none;"></div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const fileChip = document.getElementById('file-chip');
+const fileChipName = document.getElementById('file-chip-name');
+const clearFileBtn = document.getElementById('clear-file');
+const submitBtn = document.getElementById('submit-btn');
+const uploadCard = document.getElementById('upload-card');
+const progressCard = document.getElementById('progress-card');
+const progressLabel = document.getElementById('progress-label');
+const progressCount = document.getElementById('progress-count');
+const progressFill = document.getElementById('progress-fill');
+const progressEta = document.getElementById('progress-eta');
+const filenameNote = document.getElementById('filename-note');
+const resultsBody = document.getElementById('results-body');
+const tableScroll = document.querySelector('.table-scroll');
+const downloadCard = document.getElementById('download-card');
+const downloadLink = document.getElementById('download-link');
+const summaryRow = document.getElementById('summary-row');
+const errorCard = document.getElementById('error-card');
+
+let selectedFile = null;
+let allResults = [];
+let pollTimer = null;
+let jobStartTime = null;
+
+const STATUS_LABELS = { success: 'Found', no_record: 'No record', cancelled: 'Cancelled', error: 'Error', unknown: 'Unknown' };
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) setFile(fileInput.files[0]); });
+clearFileBtn.addEventListener('click', (e) => { e.stopPropagation(); setFile(null); });
+
+function setFile(file) {
+  selectedFile = file;
+  if (file) {
+    fileChipName.textContent = `📄 ${file.name}`;
+    fileChip.style.display = 'flex';
+    submitBtn.disabled = false;
+  } else {
+    fileChip.style.display = 'none';
+    submitBtn.disabled = true;
+    fileInput.value = '';
+  }
+}
+
+function renderNewRows(newResults) {
+  allResults = allResults.concat(newResults);
+  const wasNearBottom = tableScroll.scrollTop + tableScroll.clientHeight >= tableScroll.scrollHeight - 30;
+  for (const r of newResults) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono">${r.PAN || ''}</td>
+      <td><span class="pill ${r.status_label}">${STATUS_LABELS[r.status_label] || r.status_label}</span></td>
+      <td class="mono">${r.udyam_number || '—'}</td>
+      <td>${r.social_category || '—'}</td>
+    `;
+    resultsBody.appendChild(tr);
+  }
+  if (wasNearBottom) tableScroll.scrollTop = tableScroll.scrollHeight;
+}
+
+function formatEta(secondsLeft) {
+  if (secondsLeft < 60) return `~${Math.ceil(secondsLeft)}s remaining`;
+  const mins = Math.ceil(secondsLeft / 60);
+  return `~${mins} min remaining`;
+}
+
+function pollStatus(jobId) {
+  pollTimer = setInterval(async () => {
+    try {
+      const res = await fetch(`/status/${jobId}?since=${allResults.length}`);
+      const data = await res.json();
+
+      if (data.error) {
+        clearInterval(pollTimer);
+        showError(data.error);
+        return;
+      }
+
+      const total = data.total || 0;
+      const completed = data.completed || 0;
+      if (data.input_filename) filenameNote.textContent = `· ${data.input_filename}`;
+      progressLabel.textContent = total ? `Processing PAN ${Math.min(completed + (data.status === 'done' ? 0 : 1), total)} of ${total}` : 'Reading your file…';
+      progressCount.textContent = total ? `${completed} / ${total}` : '';
+      progressFill.style.width = total ? `${Math.round((completed / total) * 100)}%` : '10%';
+      renderNewRows(data.results || []);
+
+      if (completed > 0 && total > 0 && jobStartTime) {
+        const elapsedSec = (Date.now() - jobStartTime) / 1000;
+        const ratePerRow = elapsedSec / completed;
+        const remaining = (total - completed) * ratePerRow;
+        if (data.status !== 'done') progressEta.textContent = formatEta(remaining) + ' — safe to reload this page.';
+      }
+
+      if (data.status === 'error') {
+        clearInterval(pollTimer);
+        showError(data.error_message || 'Something went wrong while processing your file.');
+      } else if (data.status === 'done') {
+        clearInterval(pollTimer);
+        finishUp(data.download_url);
+      }
+    } catch (err) {
+      clearInterval(pollTimer);
+      showError('Lost connection to the server while processing. Check the terminal running app.py.');
+    }
+  }, 900);
+}
+
+function finishUp(downloadUrl) {
+  downloadLink.href = downloadUrl;
+  const counts = { success: 0, no_record: 0, cancelled: 0, error: 0 };
+  allResults.forEach(r => { counts[r.status_label] = (counts[r.status_label] || 0) + 1; });
+  summaryRow.innerHTML = `
+    <div class="summary-stat"><div class="n">${allResults.length}</div><div class="l">Total</div></div>
+    <div class="summary-stat"><div class="n">${counts.success || 0}</div><div class="l">Found</div></div>
+    <div class="summary-stat"><div class="n">${counts.no_record || 0}</div><div class="l">No Record</div></div>
+    <div class="summary-stat"><div class="n">${counts.error || 0}</div><div class="l">Errors</div></div>
+  `;
+  progressCard.style.display = 'none';
+  downloadCard.style.display = 'block';
+  history.replaceState(null, '', window.location.pathname);
+}
+
+function showError(message) {
+  errorCard.textContent = '⚠️ ' + message;
+  errorCard.style.display = 'flex';
+  submitBtn.disabled = false;
+}
+
+function startTracking(jobId) {
+  jobStartTime = Date.now();
+  history.replaceState(null, '', `?job=${jobId}`);
+  pollStatus(jobId);
+}
+
+submitBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  errorCard.style.display = 'none';
+  allResults = [];
+  resultsBody.innerHTML = '';
+  uploadCard.style.display = 'none';
+  progressCard.style.display = 'block';
+  progressLabel.textContent = 'Uploading file…';
+  progressFill.style.width = '5%';
+
+  const formData = new FormData();
+  formData.append('excel_file', selectedFile);
+
+  try {
+    const res = await fetch('/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) {
+      uploadCard.style.display = 'block';
+      progressCard.style.display = 'none';
+      showError(data.error);
+      return;
+    }
+    startTracking(data.job_id);
+  } catch (err) {
+    uploadCard.style.display = 'block';
+    progressCard.style.display = 'none';
+    showError('Could not reach the server. Is app.py still running?');
+  }
+});
+
+// Resume an in-progress job if the page was refreshed with ?job=<id> in the URL
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const existingJob = params.get('job');
+  if (existingJob) {
+    uploadCard.style.display = 'none';
+    progressCard.style.display = 'block';
+    jobStartTime = Date.now();
+    pollStatus(existingJob);
+  }
+});
+</script>
+</body>
+</html>
